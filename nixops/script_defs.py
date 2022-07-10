@@ -39,13 +39,9 @@ PluginManager.load()
 
 
 def get_network_file(args: Namespace) -> NetworkFile:
-    # Check that we don't try to build flake and classic nix at the same time
-    if args.network_dir != None and args.flake != None:
-        raise ValueError("Both --network and --flake can't be set simultany")
-
     # We use flake.
-    if args.flake != None:
-        flake: str = args.flake
+    if args.flake:
+        flake: str = args.network
         url: ParseResult = urlparse(flake)
 
         # Get the attribute or default if there is none
@@ -86,30 +82,17 @@ def get_network_file(args: Namespace) -> NetworkFile:
 
     # path to the classic entry point file
     classic_path = os.path.join(network_dir, "nixops.nix")
-    # path to the flake entry point file
-    flake_path = os.path.join(network_dir, "flake.nix")
 
     # check existing
     classic_exists: bool = os.path.exists(classic_path)
-    flake_exists: bool = os.path.exists(flake_path)
 
     # don't decide for the user, raise an exception.
-    if all((flake_exists, classic_exists)):
-        raise ValueError("Both flake.nix and nixops.nix cannot coexist")
-
     if classic_exists:
         # just return the network with no flake
         return NetworkFile(network=classic_path, attribute=None)
 
-    if flake_exists:
-        # return the flake path as network and the output attibute.
-        # TODO: depricate this version in favor of the --flake
-        return NetworkFile(network=network_dir, attribute='["default"]')
-
-    # it's nether a flake or a classic build.
-    raise ValueError(
-        f"Flake not provided and neither flake.nix nor nixops.nix exists in {network_dir}"
-    )
+    # it's a flake or a classic build.
+    raise ValueError(f"nixops.nix didn't exists in {network_dir}")
 
 
 def set_common_depl(depl: nixops.deployment.Deployment, args: Namespace) -> None:
@@ -1225,6 +1208,7 @@ def add_subparser(
     subparser = subparsers.add_parser(name, help=help)
     subparser.add_argument(
         "--network",
+        "-n",
         dest="network_dir",
         metavar="FILE",
         default=None,
@@ -1234,9 +1218,7 @@ def add_subparser(
         "--flake",
         "-f",
         dest="flake",
-        metavar="FLAKE_URI",
-        default=os.environ.get("NIXOPS_FLAKE", None),
-        help="the flake uri.",
+        help="if the network is a flake uri.",
     )
     subparser.add_argument(
         "--deployment",
